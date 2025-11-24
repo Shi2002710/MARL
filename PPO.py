@@ -132,13 +132,11 @@ class AgentPPO:
         last_done = 0
         for i in range(target_step):# 
             action, noise = self.select_action(state)
-            state,next_state, reward, done,= env.step(np.tanh(action))# here the step of cut action is finally organized into the environment.
+            next_state, reward, done, _= env.step(np.tanh(action))# here the step of cut action is finally organized into the environment.
             trajectory_temp.append((state, reward, done, action, noise))
+            state = next_state
             if done:
-                state = env.reset()
                 last_done = i
-            else:
-                state = next_state
         self.state = state
 
         '''splice list'''
@@ -309,7 +307,7 @@ if __name__=='__main__':
 
         agent_name=f'{args.agent.__class__.__name__}'
         args.agent.cri_target=True
-        args.env=ESSEnv()
+        args.env=ESSEnv(forecast_horizon=4,use_time_features=True,normalize_observation=True)
         args.init_before_training(if_main=True)
         '''init agent and environment'''
         agent=args.agent

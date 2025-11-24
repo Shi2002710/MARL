@@ -11,6 +11,11 @@
 * script "tools"-- General function needed for main process 
 * script "random_generator_battery" -- The energy system environment
 * Run scripts like DDPG.py after installing all packages. Please have a look for the code structure.
+# Recent Improvements
+* `random_generator_battery.ESSEnv` now follows the standard Gym API and returns `(observation, reward, done, info)`, which fixes the previously broken PPO pipeline.
+* Observations are normalized and enriched with sinusoidal time encodings plus configurable price/load/PV forecasts (`forecast_horizon` defaults to 4). Set `use_time_features` or `forecast_horizon` in the `ESSEnv` constructor to tailor feature richness.
+* Every environment step exports a detailed `info` dictionary (costs, unbalance, SOC, generator outputs, etc.) so logging, plotting, and debugging no longer depend on raw state indices.
+* All training scripts instantiate the improved environment settings automatically, so DDPG/TD3/SAC/PPO benefit from the augmented state without additional code changes.
 # Dependencies
 This code requires installation of the following libraries: ```PYOMO```,```pandas 1.1.4```, ```numpy 1.20.1```, ```matplotlib 3.3.4```, ```pytorch 1.11.0```,  ```math```, you can find more information [at this page](https://ieeexplore.ieee.org/document/9960642).
 # Recommended citation

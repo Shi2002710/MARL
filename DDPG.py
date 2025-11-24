@@ -37,7 +37,7 @@ if __name__=='__main__':
         args.agent=AgentDDPG()
         agent_name=f'{args.agent.__class__.__name__}'
         args.agent.cri_target=True
-        args.env=ESSEnv()
+        args.env=ESSEnv(forecast_horizon=4,use_time_features=True,normalize_observation=True)
         # creat lists of lists/or creat a long list? 
         
         args.init_before_training(if_main=True)

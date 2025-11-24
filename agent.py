@@ -41,11 +41,9 @@ class AgentBase:
         state = self.state
         for _ in range(target_step):
             action = self.select_action(state)
-            
-            state,next_state, reward, done, = env.step(action)
-
+            next_state, reward, done, _ = env.step(action)
             trajectory.append((state, (reward, done, *action)))
-            state = env.reset() if done else next_state
+            state = next_state
         self.state = state
         return trajectory
     @staticmethod
@@ -174,11 +172,9 @@ class AgentSAC(AgentBase):
         state = self.state
         for _ in range(target_step):
             action = self.select_action(state)
-            
-            state,next_state, reward, done, = env.step(action)
-
+            next_state, reward, done, _ = env.step(action)
             trajectory.append((state, (reward, done, *action)))
-            state = env.reset() if done else next_state
+            state = next_state
         self.state = state
         return trajectory
 
@@ -247,7 +243,7 @@ class AgentPPO(AgentBase):
             next_state, reward, done, _ = env.step(np.tanh(action))
             trajectory_temp.append((state, reward, done, action, noise))
             if done:
-                state = env.reset()
+                state = next_state
                 last_done = i
             else:
                 state = next_state
