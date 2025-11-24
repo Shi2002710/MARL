@@ -4,6 +4,54 @@ import numpy as np
 
 
 
+class NoisyLinear(nn.Module):
+    """Factorized Gaussian NoisyNet layer."""
+    def __init__(self, in_features, out_features, std_init=0.4):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.std_init = std_init
+
+        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+        self.register_buffer('weight_epsilon', torch.zeros(out_features, in_features))
+
+        self.bias_mu = nn.Parameter(torch.empty(out_features))
+        self.bias_sigma = nn.Parameter(torch.empty(out_features))
+        self.register_buffer('bias_epsilon', torch.zeros(out_features))
+
+        self.reset_parameters()
+        self.reset_noise()
+
+    def reset_parameters(self):
+        mu_range = 1 / np.sqrt(self.in_features)
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(self.std_init / np.sqrt(self.in_features))
+        self.bias_mu.data.uniform_(-mu_range, mu_range)
+        self.bias_sigma.data.fill_(self.std_init / np.sqrt(self.out_features))
+
+    @staticmethod
+    def _scale_noise(size):
+        noise = torch.randn(size)
+        return noise.sign().mul_(noise.abs().sqrt_())
+
+    def reset_noise(self):
+        epsilon_in = self._scale_noise(self.in_features).to(self.weight_epsilon.device)
+        epsilon_out = self._scale_noise(self.out_features).to(self.weight_epsilon.device)
+        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
+        self.bias_epsilon.copy_(epsilon_out)
+
+    def forward(self, input):
+        if self.training:
+            self.reset_noise()
+            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
+            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
+        else:
+            weight = self.weight_mu
+            bias = self.bias_mu
+        return torch.nn.functional.linear(input, weight, bias)
+
+
 class Actor(nn.Module):
     def __init__(self, mid_dim, state_dim, action_dim):
         super().__init__()
@@ -137,3 +185,37 @@ class CriticTwin(nn.Module):  # shared parameter
     def get_q1_q2(self, state, action):
         tmp = self.net_sa(torch.cat((state, action), dim=1))
         return self.net_q1(tmp), self.net_q2(tmp)  # two Q values
+
+
+class CriticTwinNoisy(nn.Module):
+    """Twin critics equipped with NoisyLinear layers for SAC."""
+    def __init__(self, mid_dim, state_dim, action_dim):
+        super().__init__()
+        self.net_sa = nn.Sequential(
+            nn.Linear(state_dim + action_dim, mid_dim), nn.ReLU(),
+            nn.Linear(mid_dim, mid_dim), nn.ReLU()
+        )
+        self.net_q1 = nn.Sequential(
+            NoisyLinear(mid_dim, mid_dim), nn.Hardswish(),
+            NoisyLinear(mid_dim, 1)
+        )
+        self.net_q2 = nn.Sequential(
+            NoisyLinear(mid_dim, mid_dim), nn.Hardswish(),
+            NoisyLinear(mid_dim, 1)
+        )
+
+    def _reset_noise(self):
+        for module in (self.net_q1, self.net_q2):
+            for layer in module:
+                if isinstance(layer, NoisyLinear):
+                    layer.reset_noise()
+
+    def forward(self, state, action):
+        self._reset_noise()
+        tmp = self.net_sa(torch.cat((state, action), dim=1))
+        return self.net_q1(tmp)
+
+    def get_q1_q2(self, state, action):
+        self._reset_noise()
+        tmp = self.net_sa(torch.cat((state, action), dim=1))
+        return self.net_q1(tmp), self.net_q2(tmp)

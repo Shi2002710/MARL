@@ -168,24 +168,24 @@ def test_one_episode(env, act, device):
     state=env.reset()
     record_init_info.append([env.month,env.day,env.current_time,env.battery.current_capacity])
     print(f'current testing month is {env.month}, day is {env.day},initial_soc is {env.battery.current_capacity}' )
-    for i in range(24):
+    for _ in range(24):
         s_tensor = torch.as_tensor((state,), device=device)
         a_tensor = act(s_tensor)  
         action = a_tensor.detach().cpu().numpy()[0]  # not need detach(), because with torch.no_grad() outside
         real_action=action
-        state,next_state,reward, done = env.step(action)
-        
-        record_system_info.append([state[0],state[1],state[3],action,real_action,env.battery.SOC(),env.battery.energy_change,next_state[4],next_state[5],next_state[6],env.unbalance,env.operation_cost])
+        next_state,reward, done, info = env.step(action)
+        record_system_info.append([info['time_step'],info['price'],info['netload'],action,real_action,info['soc'],
+                                   info['battery_energy_change'],info['dg_outputs'][0],info['dg_outputs'][1],
+                                   info['dg_outputs'][2],info['grid_exchange'],info['operation_cost']])
 
-        record_state.append(state)
+        record_state.append(info['state'])
         record_action.append(real_action)
         record_reward.append(reward)
         record_output.append(env.current_output)
         record_unbalance.append(env.unbalance)
         state=next_state
-    record_system_info[-1][7:10]=[env.final_step_outputs[0],env.final_step_outputs[1],env.final_step_outputs[2]]
-    ## add information of last step soc
-    record_system_info[-1][5]=env.final_step_outputs[3]
+        if done:
+            break
     record={'init_info':record_init_info,'information':record_system_info,'state':record_state,'action':record_action,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance,'record_output':record_output}
     return record
 def get_episode_return(env, act, device):
@@ -196,7 +196,7 @@ def get_episode_return(env, act, device):
         s_tensor = torch.as_tensor((state,), device=device)
         a_tensor = act(s_tensor)
         action = a_tensor.detach().cpu().numpy()[0]  # not need detach(), because with torch.no_grad() outside
-        state, next_state, reward, done,= env.step(action)
+        next_state, reward, done, _= env.step(action)
         state=next_state
         episode_return += reward
         episode_unbalance+=env.real_unbalance
