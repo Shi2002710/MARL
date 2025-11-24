@@ -144,7 +144,7 @@ class AgentTD3(AgentBase):
 class AgentSAC(AgentBase):
     def __init__(self):
         super().__init__()
-        self.ClassCri = CriticTwin
+        self.ClassCri = CriticTwinNoisy
         self.ClassAct = ActorSAC
         self.if_use_cri_target = True
         self.if_use_act_target = False
